@@ -1,0 +1,22 @@
+[project]
+name = "messenger-answering-machine"
+version = "0.1.0"
+description = "AI-Powered Messenger-Anrufbeantworter – Sprachgesteuerte Zusammenfassung ungelesener Nachrichten"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "websockets>=13.0",
+    "anthropic>=0.40.0",
+    "deepgram-sdk>=3.7.0",
+    "edge-tts>=6.1.0",
+    "twilio>=9.0.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.6.0",
+]
