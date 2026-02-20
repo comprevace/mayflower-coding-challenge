@@ -2,6 +2,8 @@ import logging
 import os
 from dotenv import load_dotenv
 
+from src.service.summarizer_service import SummarizerService
+
 load_dotenv()
 
 from fastapi import FastAPI
@@ -26,6 +28,11 @@ telegram_service = TelegramService(
     bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "")
 )
 
+summarizer_service = SummarizerService(
+    api_key=os.getenv("ANTHROPIC_API_KEY", ""),
+    model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+)
+
 @app.get("/messages")
 async def get_messages(acknowledge: bool = False):
     """Temporärer Test-Endpoint für Telegram-Nachrichten."""
@@ -36,3 +43,11 @@ async def get_messages(acknowledge: bool = False):
         await telegram_service.acknowledge(last_update_id)
 
     return {"count": len(messages), "messages": messages}
+
+@app.get("/summary")
+async def get_summary():
+    """Temporärer Test-Endpoint: Nachrichten abrufen und zusammenfassen."""
+    messages = await telegram_service.get_messages()
+    summary = await summarizer_service.summarize(messages)
+    return {"count": len(messages), "summary": summary}
+
