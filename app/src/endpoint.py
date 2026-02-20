@@ -10,6 +10,10 @@ from fastapi import FastAPI
 
 from src.service.telegram_service import TelegramService
 
+from fastapi.responses import Response
+from src.service.tts_service import TTSService
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -33,6 +37,10 @@ summarizer_service = SummarizerService(
     model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
 )
 
+tts_service = TTSService(
+    voice=os.getenv("TTS_VOICE", "de-DE-ConradNeural")
+)
+
 @app.get("/messages")
 async def get_messages(acknowledge: bool = False):
     """Temporärer Test-Endpoint für Telegram-Nachrichten."""
@@ -51,3 +59,8 @@ async def get_summary():
     summary = await summarizer_service.summarize(messages)
     return {"count": len(messages), "summary": summary}
 
+@app.get("/tts")
+async def text_to_speech(text: str = "Hallo, dies ist ein Test."):
+    """Temporärer Test-Endpoint: Text zu Sprache."""
+    audio = await tts_service.synthesize(text)
+    return Response(content=audio, media_type="audio/mpeg")
