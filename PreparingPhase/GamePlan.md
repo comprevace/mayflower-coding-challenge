@@ -59,3 +59,7 @@ Application Server
 ## Abweichungen Prototyp vs. Produktivsystem
 
 > TODO: Dokumentation pragmatischer Abkürzungen und was in Produktion anders wäre
+
+## Tickets
+
+ - Erstelle Tickets um Überblick zu erhalten und um die Aufgabenstellungen systematisch abarbeiten zu können
