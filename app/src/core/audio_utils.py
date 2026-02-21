@@ -28,3 +28,23 @@ def mulaw_to_base64_chunks(mulaw_bytes: bytes, chunk_size: int = 640) -> list[st
         chunk = mulaw_bytes[i : i + chunk_size]
         chunks.append(base64.b64encode(chunk).decode("ascii"))
     return chunks
+
+
+def mulaw_to_wav(mulaw_bytes: bytes, sample_rate: int = 8000) -> bytes:
+    """Konvertiert mulaw-Audio zu WAV für STT."""
+    try:
+        pcm = audioop.ulaw2lin(mulaw_bytes, 2)
+        audio = AudioSegment(
+            data=pcm,
+            sample_width=2,
+            frame_rate=sample_rate,
+            channels=1,
+        )
+        buffer = io.BytesIO()
+        audio.export(buffer, format="wav")
+        wav_bytes = buffer.getvalue()
+        logger.info(f"Converted {len(mulaw_bytes)} mulaw bytes to {len(wav_bytes)} WAV bytes")
+        return wav_bytes
+    except Exception as e:
+        logger.error(f"mulaw to WAV conversion error: {e}")
+        return b""

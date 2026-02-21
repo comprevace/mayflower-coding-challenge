@@ -48,3 +48,41 @@ class SummarizerService:
         except Exception as e:
             logger.error(f"Claude API error: {e}")
             return "Entschuldigung, ich konnte deine Nachrichten gerade nicht zusammenfassen."
+
+    async def answer_followup(
+        self,
+        question: str,
+        messages: list[TelegramMessage],
+        conversation_history: list[dict],
+    ) -> str:
+        """Beantwortet eine Rückfrage im Kontext der Nachrichten."""
+        formatted = "\n".join(
+            f"[{m.timestamp.strftime('%H:%M')}] {m.sender}: {m.text}"
+            for m in messages
+        )
+
+        system = f"""Du bist ein Anrufbeantworter-Assistent. Der Benutzer hat folgende
+Telegram-Nachrichten:
+
+{formatted}
+
+Der Benutzer stellt Rückfragen per Telefon. Antworte kurz und
+präzise — deine Antwort wird per TTS vorgelesen.
+Wenn der Benutzer "tschüss", "danke" oder ähnliches sagt,
+verabschiede dich freundlich."""
+
+        conversation_history.append({"role": "user", "content": question})
+
+        try:
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=300,
+                system=system,
+                messages=conversation_history, # type: ignore
+            )
+            answer = response.content[0].text  # type: ignore
+            conversation_history.append({"role": "assistant", "content": answer})
+            return answer
+        except Exception as e:
+            logger.error(f"Claude followup error: {e}")
+            return "Entschuldigung, das habe ich nicht verstanden."

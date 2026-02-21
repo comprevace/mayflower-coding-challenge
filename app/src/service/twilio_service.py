@@ -39,6 +39,7 @@ async def media_stream(ws: WebSocket):
     logger.info("Twilio WebSocket connected")
 
     stream_sid = None
+    pipeline = None
     pipeline_task = None
 
     try:
@@ -56,6 +57,7 @@ async def media_stream(ws: WebSocket):
                     telegram_service,
                     summarizer_service,
                     tts_service,
+                    stt_service,
                 )
 
                 pipeline = Pipeline(
@@ -64,15 +66,20 @@ async def media_stream(ws: WebSocket):
                     telegram_service=telegram_service,
                     summarizer_service=summarizer_service,
                     tts_service=tts_service,
+                    stt_service=stt_service,
                 )
 
                 pipeline_task = asyncio.create_task(pipeline.run())
 
             elif event == "media":
-                pass  # Wird in Ticket 8 für STT genutzt
+                if pipeline:
+                    payload = message["media"]["payload"]
+                    pipeline.feed_audio(payload)
 
             elif event == "stop":
                 logger.info(f"Stream stopped: {stream_sid}")
+                if pipeline:
+                    pipeline.audio_queue.put_nowait(None)
                 break
 
     except WebSocketDisconnect:
