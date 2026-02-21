@@ -13,6 +13,9 @@ from src.service.telegram_service import TelegramService
 from fastapi.responses import Response
 from src.service.tts_service import TTSService
 
+from src.service.stt_service import STTService
+
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,6 +44,10 @@ tts_service = TTSService(
     voice=os.getenv("TTS_VOICE", "de-DE-ConradNeural")
 )
 
+stt_service = STTService(
+    api_key=os.getenv("DEEPGRAM_API_KEY", "")
+)
+
 @app.get("/messages")
 async def get_messages(acknowledge: bool = False):
     """Temporärer Test-Endpoint für Telegram-Nachrichten."""
@@ -64,3 +71,10 @@ async def text_to_speech(text: str = "Hallo, dies ist ein Test."):
     """Temporärer Test-Endpoint: Text zu Sprache."""
     audio = await tts_service.synthesize(text)
     return Response(content=audio, media_type="audio/mpeg")
+
+@app.get("/stt")
+async def speech_to_text(text: str = "Hallo, dies ist ein Test."):
+    """Temporärer Test-Endpoint: Text → TTS → STT → Text zurück."""
+    audio = await tts_service.synthesize(text)
+    transcript = await stt_service.transcribe(audio)
+    return {"original": text, "transcript": transcript}
