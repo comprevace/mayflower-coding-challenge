@@ -1,8 +1,11 @@
+import asyncio
 import logging
 import os
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
+
+from src.core.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,7 @@ async def media_stream(ws: WebSocket):
     logger.info("Twilio WebSocket connected")
 
     stream_sid = None
+    pipeline_task = None
 
     try:
         async for message in ws.iter_json():
@@ -48,10 +52,24 @@ async def media_stream(ws: WebSocket):
                 stream_sid = message["start"]["streamSid"]
                 logger.info(f"Stream started: {stream_sid}")
 
+                from src.endpoint import (
+                    telegram_service,
+                    summarizer_service,
+                    tts_service,
+                )
+
+                pipeline = Pipeline(
+                    ws=ws,
+                    stream_sid=stream_sid,
+                    telegram_service=telegram_service,
+                    summarizer_service=summarizer_service,
+                    tts_service=tts_service,
+                )
+
+                pipeline_task = asyncio.create_task(pipeline.run())
+
             elif event == "media":
-                # Audio-Daten vom Anrufer (base64-kodiertes mulaw)
-                # Hier wird später die Pipeline angebunden
-                pass
+                pass  # Wird in Ticket 8 für STT genutzt
 
             elif event == "stop":
                 logger.info(f"Stream stopped: {stream_sid}")
@@ -62,4 +80,6 @@ async def media_stream(ws: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
+        if pipeline_task and not pipeline_task.done():
+            pipeline_task.cancel()
         logger.info(f"WebSocket session ended: {stream_sid}")
