@@ -15,6 +15,8 @@ from src.service.tts_service import TTSService
 
 from src.service.stt_service import STTService
 
+from src.service.twilio_service import router as twilio_router
+
 
 
 logging.basicConfig(
@@ -25,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+app.include_router(twilio_router)
 
 @app.get("/health")
 async def health_check():
