@@ -2,22 +2,37 @@ import asyncio
 import logging
 import os
 
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response
+from fastapi import WebSocket, WebSocketDisconnect
 
 from src.core.pipeline import Pipeline
+from src.service.telegram_service import TelegramService
+from src.service.summarizer_service import SummarizerService
+from src.service.tts_service import TTSService
+from src.service.stt_service import STTService
 
 logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/twilio")
 
 PUBLIC_URL = os.getenv("PUBLIC_URL", "localhost:8000")
 
 
-@router.post("/voice")
-async def handle_incoming_call(request: Request):
-    """Twilio ruft diesen Endpoint bei eingehendem Anruf auf."""
-    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+class TwilioService:
+    """Kapselt die Twilio-Logik: TwiML-Generierung und Media-Stream-Handling."""
+
+    def __init__(
+        self,
+        telegram_service: TelegramService,
+        summarizer_service: SummarizerService,
+        tts_service: TTSService,
+        stt_service: STTService,
+    ):
+        self.telegram_service = telegram_service
+        self.summarizer_service = summarizer_service
+        self.tts_service = tts_service
+        self.stt_service = stt_service
+
+    def generate_twiml(self) -> str:
+        """Erzeugt TwiML-Response für eingehende Anrufe."""
+        return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="Polly.Vicki" language="de-DE">
         Willkommen beim intelligenten Anrufbeantworter.
@@ -28,65 +43,53 @@ async def handle_incoming_call(request: Request):
     </Connect>
 </Response>"""
 
-    logger.info("Incoming call, returning TwiML with media stream")
-    return Response(content=twiml, media_type="application/xml")
+    async def handle_media_stream(self, ws: WebSocket):
+        """Verarbeitet den bidirektionalen Twilio Media Stream."""
+        await ws.accept()
+        logger.info("Twilio WebSocket connected")
 
+        stream_sid = None
+        pipeline = None
+        pipeline_task = None
 
-@router.websocket("/media-stream")
-async def media_stream(ws: WebSocket):
-    """Bidirektionaler WebSocket für Twilio Media Streams."""
-    await ws.accept()
-    logger.info("Twilio WebSocket connected")
+        try:
+            async for message in ws.iter_json():
+                event = message.get("event")
 
-    stream_sid = None
-    pipeline = None
-    pipeline_task = None
+                if event == "connected":
+                    logger.info("Twilio media stream connected")
 
-    try:
-        async for message in ws.iter_json():
-            event = message.get("event")
+                elif event == "start":
+                    stream_sid = message["start"]["streamSid"]
+                    logger.info(f"Stream started: {stream_sid}")
 
-            if event == "connected":
-                logger.info("Twilio media stream connected")
+                    pipeline = Pipeline(
+                        ws=ws,
+                        stream_sid=stream_sid,
+                        telegram_service=self.telegram_service,
+                        summarizer_service=self.summarizer_service,
+                        tts_service=self.tts_service,
+                        stt_service=self.stt_service,
+                    )
 
-            elif event == "start":
-                stream_sid = message["start"]["streamSid"]
-                logger.info(f"Stream started: {stream_sid}")
+                    pipeline_task = asyncio.create_task(pipeline.run())
 
-                from src.endpoint import (
-                    telegram_service,
-                    summarizer_service,
-                    tts_service,
-                    stt_service,
-                )
+                elif event == "media":
+                    if pipeline:
+                        payload = message["media"]["payload"]
+                        pipeline.feed_audio(payload)
 
-                pipeline = Pipeline(
-                    ws=ws,
-                    stream_sid=stream_sid,
-                    telegram_service=telegram_service,
-                    summarizer_service=summarizer_service,
-                    tts_service=tts_service,
-                    stt_service=stt_service,
-                )
+                elif event == "stop":
+                    logger.info(f"Stream stopped: {stream_sid}")
+                    if pipeline:
+                        pipeline.audio_queue.put_nowait(None)
+                    break
 
-                pipeline_task = asyncio.create_task(pipeline.run())
-
-            elif event == "media":
-                if pipeline:
-                    payload = message["media"]["payload"]
-                    pipeline.feed_audio(payload)
-
-            elif event == "stop":
-                logger.info(f"Stream stopped: {stream_sid}")
-                if pipeline:
-                    pipeline.audio_queue.put_nowait(None)
-                break
-
-    except WebSocketDisconnect:
-        logger.info("Twilio WebSocket disconnected")
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-    finally:
-        if pipeline_task and not pipeline_task.done():
-            pipeline_task.cancel()
-        logger.info(f"WebSocket session ended: {stream_sid}")
+        except WebSocketDisconnect:
+            logger.info("Twilio WebSocket disconnected")
+        except Exception as e:
+            logger.error(f"WebSocket error: {e}")
+        finally:
+            if pipeline_task and not pipeline_task.done():
+                pipeline_task.cancel()
+            logger.info(f"WebSocket session ended: {stream_sid}")

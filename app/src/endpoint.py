@@ -1,23 +1,18 @@
 import logging
 import os
-from dotenv import load_dotenv
 
-from src.service.summarizer_service import SummarizerService
+from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
+from fastapi.responses import Response
 
 from src.service.telegram_service import TelegramService
-
-from fastapi.responses import Response
+from src.service.summarizer_service import SummarizerService
 from src.service.tts_service import TTSService
-
 from src.service.stt_service import STTService
-
-from src.service.twilio_service import router as twilio_router
-
-
+from src.service.twilio_service import TwilioService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,12 +22,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-app.include_router(twilio_router)
-
-@app.get("/health")
-async def health_check():
-    """Health-Check Endpoint für Kubernetes Probes."""
-    return {"status": "ok"}
+# ── Services ──
 
 telegram_service = TelegramService(
     bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -51,6 +41,40 @@ stt_service = STTService(
     api_key=os.getenv("DEEPGRAM_API_KEY", "")
 )
 
+twilio_service = TwilioService(
+    telegram_service=telegram_service,
+    summarizer_service=summarizer_service,
+    tts_service=tts_service,
+    stt_service=stt_service,
+)
+
+
+# ── Health ──
+
+@app.get("/health")
+async def health_check():
+    """Health-Check Endpoint für Kubernetes Probes."""
+    return {"status": "ok"}
+
+
+# ── Twilio ──
+
+@app.post("/twilio/voice")
+async def handle_incoming_call():
+    """Twilio ruft diesen Endpoint bei eingehendem Anruf auf."""
+    twiml = twilio_service.generate_twiml()
+    logger.info("Incoming call, returning TwiML with media stream")
+    return Response(content=twiml, media_type="application/xml")
+
+
+@app.websocket("/twilio/media-stream")
+async def media_stream(ws: WebSocket):
+    """Bidirektionaler WebSocket für Twilio Media Streams."""
+    await twilio_service.handle_media_stream(ws)
+
+
+# ── Test-Endpoints ──
+
 @app.get("/messages")
 async def get_messages(acknowledge: bool = False):
     """Temporärer Test-Endpoint für Telegram-Nachrichten."""
@@ -62,6 +86,7 @@ async def get_messages(acknowledge: bool = False):
 
     return {"count": len(messages), "messages": messages}
 
+
 @app.get("/summary")
 async def get_summary():
     """Temporärer Test-Endpoint: Nachrichten abrufen und zusammenfassen."""
@@ -69,11 +94,13 @@ async def get_summary():
     summary = await summarizer_service.summarize(messages)
     return {"count": len(messages), "summary": summary}
 
+
 @app.get("/tts")
 async def text_to_speech(text: str = "Hallo, dies ist ein Test."):
     """Temporärer Test-Endpoint: Text zu Sprache."""
     audio = await tts_service.synthesize(text)
     return Response(content=audio, media_type="audio/mpeg")
+
 
 @app.get("/stt")
 async def speech_to_text(text: str = "Hallo, dies ist ein Test."):
