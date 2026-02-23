@@ -1,5 +1,6 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -12,8 +13,9 @@ TELEGRAM_API_BASE = "https://api.telegram.org/bot{token}"
 
 
 class TelegramService:
+    """Telegram Bot API: Nachrichten abrufen und als gelesen markieren."""
+
     def __init__(self, bot_token: str):
-        self.bot_token = bot_token
         self.base_url = TELEGRAM_API_BASE.format(token=bot_token)
         self.client = httpx.AsyncClient(timeout=TELEGRAM_TIMEOUT)
 
@@ -40,32 +42,15 @@ class TelegramService:
             logger.error(f"Telegram API returned error: {data}")
             return []
 
-        messages = []
-        for update in data.get("result", []):
-            msg = update.get("message")
-            if not msg or not msg.get("text"):
-                continue
-
-            sender = msg["from"].get("first_name", "Unbekannt")
-            if last_name := msg["from"].get("last_name"):
-                sender = f"{sender} {last_name}"
-
-            messages.append(
-                TelegramMessage(
-                    sender=sender,
-                    timestamp=datetime.fromtimestamp(
-                        msg["date"], tz=timezone.utc
-                    ),
-                    text=msg["text"],
-                    chat_id=msg["chat"]["id"],
-                    message_id=msg["message_id"],
-                    update_id=update["update_id"],
-                )
-            )
+        messages = [
+            msg
+            for update in data.get("result", [])
+            if (msg := self._parse_update(update)) is not None
+        ]
 
         logger.info(f"Retrieved {len(messages)} messages from Telegram")
         return messages
-    
+
     async def acknowledge(self, last_update_id: int):
         """Markiert Updates bis einschließlich last_update_id als gelesen."""
         url = f"{self.base_url}/getUpdates"
@@ -73,6 +58,22 @@ class TelegramService:
         await self.client.get(url, params=params)
         logger.info(f"Acknowledged updates up to {last_update_id}")
 
-    async def close(self):
-        """HTTP Client schließen."""
-        await self.client.aclose()
+    @staticmethod
+    def _parse_update(update: dict) -> TelegramMessage | None:
+        """Parst ein Telegram-Update zu einer TelegramMessage."""
+        msg = update.get("message")
+        if not msg or not msg.get("text"):
+            return None
+
+        sender = msg["from"].get("first_name", "Unbekannt")
+        if last_name := msg["from"].get("last_name"):
+            sender = f"{sender} {last_name}"
+
+        return TelegramMessage(
+            sender=sender,
+            timestamp=datetime.fromtimestamp(msg["date"], tz=ZoneInfo("Europe/Berlin")),
+            text=msg["text"],
+            chat_id=msg["chat"]["id"],
+            message_id=msg["message_id"],
+            update_id=update["update_id"],
+        )
