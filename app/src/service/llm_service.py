@@ -20,7 +20,9 @@ Regeln:
 """
 
 
-class SummarizerService:
+class LLMService:
+    """Claude-basierte Zusammenfassung und Rückfragen-Beantwortung."""
+
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-20250514"):
         self.client = AsyncAnthropic(api_key=api_key, timeout=ANTHROPIC_TIMEOUT)
         self.model = model

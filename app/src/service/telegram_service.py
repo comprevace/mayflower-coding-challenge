@@ -12,6 +12,8 @@ TELEGRAM_API_BASE = "https://api.telegram.org/bot{token}"
 
 
 class TelegramService:
+    """Telegram Bot API: Nachrichten abrufen und als gelesen markieren."""
+
     def __init__(self, bot_token: str):
         self.bot_token = bot_token
         self.base_url = TELEGRAM_API_BASE.format(token=bot_token)
@@ -65,7 +67,7 @@ class TelegramService:
 
         logger.info(f"Retrieved {len(messages)} messages from Telegram")
         return messages
-    
+
     async def acknowledge(self, last_update_id: int):
         """Markiert Updates bis einschließlich last_update_id als gelesen."""
         url = f"{self.base_url}/getUpdates"

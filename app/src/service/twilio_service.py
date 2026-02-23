@@ -5,10 +5,10 @@ import os
 from fastapi import WebSocket, WebSocketDisconnect
 
 from src.core.pipeline import Pipeline
-from src.service.telegram_service import TelegramService
-from src.service.summarizer_service import SummarizerService
-from src.service.tts_service import TTSService
 from src.service.stt_service import STTService
+from src.service.llm_service import LLMService
+from src.service.telegram_service import TelegramService
+from src.service.tts_service import TTSService
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +21,12 @@ class TwilioService:
     def __init__(
         self,
         telegram_service: TelegramService,
-        summarizer_service: SummarizerService,
+        llm_service: LLMService,
         tts_service: TTSService,
         stt_service: STTService,
     ):
         self.telegram_service = telegram_service
-        self.summarizer_service = summarizer_service
+        self.llm_service = llm_service
         self.tts_service = tts_service
         self.stt_service = stt_service
 
@@ -67,7 +67,7 @@ class TwilioService:
                         ws=ws,
                         stream_sid=stream_sid,
                         telegram_service=self.telegram_service,
-                        summarizer_service=self.summarizer_service,
+                        llm_service=self.llm_service,
                         tts_service=self.tts_service,
                         stt_service=self.stt_service,
                     )

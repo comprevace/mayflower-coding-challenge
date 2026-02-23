@@ -11,6 +11,8 @@ DEEPGRAM_URL = "https://api.deepgram.com/v1/listen"
 DEEPGRAM_STREAM_URL = "wss://api.deepgram.com/v1/listen"
 
 class STTService:
+    """Deepgram Speech-to-Text: Batch-Transkription und Streaming mit VAD."""
+
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.client = httpx.AsyncClient(timeout=DEEPGRAM_TIMEOUT)
@@ -55,7 +57,7 @@ class STTService:
         except Exception as e:
             logger.error(f"STT unexpected error: {e}")
             return ""
-        
+
     def create_stream(self):
         """Öffnet eine Streaming-Verbindung zu Deepgram mit VAD."""
         params = "&".join([
@@ -71,7 +73,6 @@ class STTService:
             f"{DEEPGRAM_STREAM_URL}?{params}",
             additional_headers={"Authorization": f"Token {self.api_key}"},
         )
-        
 
     async def close(self):
         await self.client.aclose()

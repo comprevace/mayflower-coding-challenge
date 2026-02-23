@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import logging
 
@@ -6,15 +7,14 @@ import websockets
 from fastapi import WebSocket
 
 from src.core.audio_utils import mp3_to_mulaw, mulaw_to_base64_chunks
-from src.service.telegram_service import TelegramService
-from src.service.summarizer_service import SummarizerService
-from src.service.tts_service import TTSService
 from src.service.stt_service import STTService
+from src.service.llm_service import LLMService
+from src.service.telegram_service import TelegramService
+from src.service.tts_service import TTSService
 
 logger = logging.getLogger(__name__)
 
 GOODBYE_WORDS = ["tschüss", "danke", "auf wiedersehen", "bye", "ciao", "Ende"]
-
 
 
 class Pipeline:
@@ -23,14 +23,14 @@ class Pipeline:
         ws: WebSocket,
         stream_sid: str,
         telegram_service: TelegramService,
-        summarizer_service: SummarizerService,
+        llm_service: LLMService,
         tts_service: TTSService,
         stt_service: STTService,
     ):
         self.ws = ws
         self.stream_sid = stream_sid
         self.telegram_service = telegram_service
-        self.summarizer_service = summarizer_service
+        self.llm_service = llm_service
         self.tts_service = tts_service
         self.stt_service = stt_service
 
@@ -40,7 +40,6 @@ class Pipeline:
 
     def feed_audio(self, payload: str):
         """Empfängt Base64-kodierten mulaw-Audio vom WebSocket."""
-        import base64
         audio_bytes = base64.b64decode(payload)
         self.audio_queue.put_nowait(audio_bytes)
 
@@ -53,7 +52,7 @@ class Pipeline:
 
             # 2. Claude-Zusammenfassung
             logger.info("Summarizing messages with Claude...")
-            summary = await self.summarizer_service.summarize(self.messages)
+            summary = await self.llm_service.summarize(self.messages)
             logger.info(f"Summary: {summary}")
 
             # 3. Zusammenfassung vorlesen
@@ -99,7 +98,7 @@ class Pipeline:
                 break
 
             # Claude-Antwort generieren
-            answer = await self.summarizer_service.answer_followup(
+            answer = await self.llm_service.answer_followup(
                 question=transcript,
                 messages=self.messages,
                 conversation_history=self.conversation_history,

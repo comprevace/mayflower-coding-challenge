@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 class TTSService:
+    """Edge-TTS Text-to-Speech Synthese."""
+
     def __init__(self, voice: str = "de-DE-ConradNeural"):
         self.voice = voice
 

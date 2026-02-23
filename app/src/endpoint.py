@@ -8,10 +8,10 @@ load_dotenv()
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import Response
 
-from src.service.telegram_service import TelegramService
-from src.service.summarizer_service import SummarizerService
-from src.service.tts_service import TTSService
 from src.service.stt_service import STTService
+from src.service.llm_service import LLMService
+from src.service.telegram_service import TelegramService
+from src.service.tts_service import TTSService
 from src.service.twilio_service import TwilioService
 
 logging.basicConfig(
@@ -28,7 +28,7 @@ telegram_service = TelegramService(
     bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "")
 )
 
-summarizer_service = SummarizerService(
+llm_service = LLMService(
     api_key=os.getenv("ANTHROPIC_API_KEY", ""),
     model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
 )
@@ -43,7 +43,7 @@ stt_service = STTService(
 
 twilio_service = TwilioService(
     telegram_service=telegram_service,
-    summarizer_service=summarizer_service,
+    llm_service=llm_service,
     tts_service=tts_service,
     stt_service=stt_service,
 )
@@ -71,40 +71,3 @@ async def handle_incoming_call():
 async def media_stream(ws: WebSocket):
     """Bidirektionaler WebSocket für Twilio Media Streams."""
     await twilio_service.handle_media_stream(ws)
-
-
-# ── Test-Endpoints ──
-
-@app.get("/messages")
-async def get_messages(acknowledge: bool = False):
-    """Temporärer Test-Endpoint für Telegram-Nachrichten."""
-    messages = await telegram_service.get_messages()
-
-    if acknowledge and messages:
-        last_update_id = messages[-1].update_id
-        await telegram_service.acknowledge(last_update_id)
-
-    return {"count": len(messages), "messages": messages}
-
-
-@app.get("/summary")
-async def get_summary():
-    """Temporärer Test-Endpoint: Nachrichten abrufen und zusammenfassen."""
-    messages = await telegram_service.get_messages()
-    summary = await summarizer_service.summarize(messages)
-    return {"count": len(messages), "summary": summary}
-
-
-@app.get("/tts")
-async def text_to_speech(text: str = "Hallo, dies ist ein Test."):
-    """Temporärer Test-Endpoint: Text zu Sprache."""
-    audio = await tts_service.synthesize(text)
-    return Response(content=audio, media_type="audio/mpeg")
-
-
-@app.get("/stt")
-async def speech_to_text(text: str = "Hallo, dies ist ein Test."):
-    """Temporärer Test-Endpoint: Text → TTS → STT → Text zurück."""
-    audio = await tts_service.synthesize(text)
-    transcript = await stt_service.transcribe(audio)
-    return {"original": text, "transcript": transcript}
