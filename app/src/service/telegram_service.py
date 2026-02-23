@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import httpx
 
+from src.core.config import TELEGRAM_TIMEOUT
 from src.models.telegramMessage import TelegramMessage
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ class TelegramService:
     def __init__(self, bot_token: str):
         self.bot_token = bot_token
         self.base_url = TELEGRAM_API_BASE.format(token=bot_token)
-        self.client = httpx.AsyncClient(timeout=10.0)
+        self.client = httpx.AsyncClient(timeout=TELEGRAM_TIMEOUT)
 
     async def get_messages(self, limit: int = 20) -> list[TelegramMessage]:
         """Ruft die letzten Nachrichten via getUpdates ab."""
@@ -25,6 +26,12 @@ class TelegramService:
             response = await self.client.get(url, params=params)
             response.raise_for_status()
             data = response.json()
+        except httpx.TimeoutException:
+            logger.error("Telegram API timeout — API nicht erreichbar")
+            return []
+        except httpx.ConnectError:
+            logger.error("Telegram API connection error — keine Verbindung")
+            return []
         except httpx.HTTPError as e:
             logger.error(f"Telegram API error: {e}")
             return []
