@@ -8,8 +8,9 @@ load_dotenv()
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import Response
 
-from src.service.stt_service import STTService
+from src.core.service_provider import ServiceProvider
 from src.service.llm_service import LLMService
+from src.service.stt_service import STTService
 from src.service.telegram_service import TelegramService
 from src.service.tts_service import TTSService
 from src.service.twilio_service import TwilioService
@@ -24,29 +25,17 @@ app = FastAPI()
 
 # ── Services ──
 
-telegram_service = TelegramService(
-    bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "")
+services = ServiceProvider(
+    telegram=TelegramService(bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "")),
+    llm=LLMService(
+        api_key=os.getenv("ANTHROPIC_API_KEY", ""),
+        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+    ),
+    tts=TTSService(voice=os.getenv("TTS_VOICE", "de-DE-ConradNeural")),
+    stt=STTService(api_key=os.getenv("DEEPGRAM_API_KEY", "")),
 )
 
-llm_service = LLMService(
-    api_key=os.getenv("ANTHROPIC_API_KEY", ""),
-    model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
-)
-
-tts_service = TTSService(
-    voice=os.getenv("TTS_VOICE", "de-DE-ConradNeural")
-)
-
-stt_service = STTService(
-    api_key=os.getenv("DEEPGRAM_API_KEY", "")
-)
-
-twilio_service = TwilioService(
-    telegram_service=telegram_service,
-    llm_service=llm_service,
-    tts_service=tts_service,
-    stt_service=stt_service,
-)
+twilio_service = TwilioService(services=services)
 
 
 # ── Health ──

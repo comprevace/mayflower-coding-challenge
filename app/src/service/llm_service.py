@@ -1,13 +1,13 @@
 import logging
 
-from anthropic import APITimeoutError, APIConnectionError, APIStatusError, AsyncAnthropic
+from anthropic import APIConnectionError, APIStatusError, APITimeoutError, AsyncAnthropic
 
 from src.core.config import ANTHROPIC_TIMEOUT
 from src.models.telegramMessage import TelegramMessage
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """Du bist ein Anrufbeantworter-Assistent. Der Benutzer ruft an, um seine
+SUMMARIZE_PROMPT = """Du bist ein Anrufbeantworter-Assistent. Der Benutzer ruft an, um seine
 Telegram-Nachrichten vorgelesen zu bekommen.
 
 Regeln:
@@ -18,6 +18,16 @@ Regeln:
 - Halte dich kurz — der Text wird per Telefon vorgelesen
 - Ende mit "Möchtest du zu einer Nachricht mehr erfahren?"
 """
+
+FOLLOWUP_PROMPT = """Du bist ein Anrufbeantworter-Assistent. Der Benutzer hat folgende
+Telegram-Nachrichten:
+
+{messages}
+
+Der Benutzer stellt Rückfragen per Telefon. Antworte kurz und
+präzise — deine Antwort wird per TTS vorgelesen.
+Wenn der Benutzer "tschüss", "danke" oder ähnliches sagt,
+verabschiede dich freundlich."""
 
 
 class LLMService:
@@ -32,34 +42,17 @@ class LLMService:
         if not messages:
             return "Du hast keine neuen Nachrichten."
 
-        formatted = "\n".join(
-            f"[{m.timestamp.strftime('%H:%M')}] {m.sender}: {m.text}"
-            for m in messages
-        )
+        formatted = _format_messages(messages)
 
-        try:
-            response = await self.client.messages.create(
-                model=self.model,
-                max_tokens=500,
-                system=SYSTEM_PROMPT,
-                messages=[{
-                    "role": "user",
-                    "content": f"Fasse diese Nachrichten zusammen:\n\n{formatted}"
-                }],
-            )
-            return response.content[0].text  # type: ignore
-        except APITimeoutError:
-            logger.error("Claude API timeout — Anfrage dauerte zu lange")
-            return "Entschuldigung, die Zusammenfassung hat zu lange gedauert."
-        except APIConnectionError:
-            logger.error("Claude API connection error — keine Verbindung")
-            return "Entschuldigung, ich konnte den Zusammenfassungsdienst nicht erreichen."
-        except APIStatusError as e:
-            logger.error(f"Claude API status error: {e.status_code} — {e.message}")
-            return "Entschuldigung, ich konnte deine Nachrichten gerade nicht zusammenfassen."
-        except Exception as e:
-            logger.error(f"Claude API unexpected error: {e}")
-            return "Entschuldigung, ich konnte deine Nachrichten gerade nicht zusammenfassen."
+        return await self._call(
+            system=SUMMARIZE_PROMPT,
+            messages=[{
+                "role": "user",
+                "content": f"Fasse diese Nachrichten zusammen:\n\n{formatted}",
+            }],
+            max_tokens=500,
+            fallback="Entschuldigung, ich konnte deine Nachrichten gerade nicht zusammenfassen.",
+        )
 
     async def answer_followup(
         self,
@@ -68,42 +61,50 @@ class LLMService:
         conversation_history: list[dict],
     ) -> str:
         """Beantwortet eine Rückfrage im Kontext der Nachrichten."""
-        formatted = "\n".join(
-            f"[{m.timestamp.strftime('%H:%M')}] {m.sender}: {m.text}"
-            for m in messages
-        )
-
-        system = f"""Du bist ein Anrufbeantworter-Assistent. Der Benutzer hat folgende
-Telegram-Nachrichten:
-
-{formatted}
-
-Der Benutzer stellt Rückfragen per Telefon. Antworte kurz und
-präzise — deine Antwort wird per TTS vorgelesen.
-Wenn der Benutzer "tschüss", "danke" oder ähnliches sagt,
-verabschiede dich freundlich."""
-
+        system = FOLLOWUP_PROMPT.format(messages=_format_messages(messages))
         conversation_history.append({"role": "user", "content": question})
 
+        answer = await self._call(
+            system=system,
+            messages=conversation_history,  # type: ignore
+            max_tokens=300,
+            fallback="Entschuldigung, das habe ich nicht verstanden.",
+        )
+
+        conversation_history.append({"role": "assistant", "content": answer})
+        return answer
+
+    async def _call(
+        self,
+        system: str,
+        messages: list[dict],
+        max_tokens: int,
+        fallback: str,
+    ) -> str:
+        """Sendet eine Anfrage an Claude mit einheitlichem Error-Handling."""
         try:
             response = await self.client.messages.create(
                 model=self.model,
-                max_tokens=300,
+                max_tokens=max_tokens,
                 system=system,
-                messages=conversation_history, # type: ignore
+                messages=messages,  # type: ignore
             )
-            answer = response.content[0].text  # type: ignore
-            conversation_history.append({"role": "assistant", "content": answer})
-            return answer
+            return response.content[0].text  # type: ignore
         except APITimeoutError:
-            logger.error("Claude followup timeout — Anfrage dauerte zu lange")
-            return "Entschuldigung, die Antwort hat zu lange gedauert."
+            logger.error("Claude API timeout")
         except APIConnectionError:
-            logger.error("Claude followup connection error — keine Verbindung")
-            return "Entschuldigung, ich konnte den Dienst nicht erreichen."
+            logger.error("Claude API connection error")
         except APIStatusError as e:
-            logger.error(f"Claude followup status error: {e.status_code} — {e.message}")
-            return "Entschuldigung, das habe ich nicht verstanden."
+            logger.error(f"Claude API status error: {e.status_code} — {e.message}")
         except Exception as e:
-            logger.error(f"Claude followup unexpected error: {e}")
-            return "Entschuldigung, das habe ich nicht verstanden."
+            logger.error(f"Claude API unexpected error: {e}")
+
+        return fallback
+
+
+def _format_messages(messages: list[TelegramMessage]) -> str:
+    """Formatiert Telegram-Nachrichten als lesbaren Text."""
+    return "\n".join(
+        f"[{m.timestamp.strftime('%H:%M')}] {m.sender}: {m.text}"
+        for m in messages
+    )

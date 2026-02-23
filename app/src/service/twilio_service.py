@@ -5,10 +5,7 @@ import os
 from fastapi import WebSocket, WebSocketDisconnect
 
 from src.core.pipeline import Pipeline
-from src.service.stt_service import STTService
-from src.service.llm_service import LLMService
-from src.service.telegram_service import TelegramService
-from src.service.tts_service import TTSService
+from src.core.service_provider import ServiceProvider
 
 logger = logging.getLogger(__name__)
 
@@ -18,26 +15,13 @@ PUBLIC_URL = os.getenv("PUBLIC_URL", "localhost:8000")
 class TwilioService:
     """Kapselt die Twilio-Logik: TwiML-Generierung und Media-Stream-Handling."""
 
-    def __init__(
-        self,
-        telegram_service: TelegramService,
-        llm_service: LLMService,
-        tts_service: TTSService,
-        stt_service: STTService,
-    ):
-        self.telegram_service = telegram_service
-        self.llm_service = llm_service
-        self.tts_service = tts_service
-        self.stt_service = stt_service
+    def __init__(self, services: ServiceProvider):
+        self.services = services
 
     def generate_twiml(self) -> str:
         """Erzeugt TwiML-Response für eingehende Anrufe."""
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say voice="Polly.Vicki" language="de-DE">
-        Willkommen beim intelligenten Anrufbeantworter.
-        Einen Moment, ich prüfe deine Nachrichten.
-    </Say>
     <Connect>
         <Stream url="wss://{PUBLIC_URL}/twilio/media-stream" />
     </Connect>
@@ -66,10 +50,7 @@ class TwilioService:
                     pipeline = Pipeline(
                         ws=ws,
                         stream_sid=stream_sid,
-                        telegram_service=self.telegram_service,
-                        llm_service=self.llm_service,
-                        tts_service=self.tts_service,
-                        stt_service=self.stt_service,
+                        services=self.services,
                     )
 
                     pipeline_task = asyncio.create_task(pipeline.run())
