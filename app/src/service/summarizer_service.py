@@ -1,7 +1,8 @@
 import logging
 
-from anthropic import AsyncAnthropic
+from anthropic import APITimeoutError, APIConnectionError, APIStatusError, AsyncAnthropic
 
+from src.core.config import ANTHROPIC_TIMEOUT
 from src.models.telegramMessage import TelegramMessage
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ Regeln:
 
 class SummarizerService:
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-20250514"):
-        self.client = AsyncAnthropic(api_key=api_key)
+        self.client = AsyncAnthropic(api_key=api_key, timeout=ANTHROPIC_TIMEOUT)
         self.model = model
 
     async def summarize(self, messages: list[TelegramMessage]) -> str:
@@ -44,9 +45,18 @@ class SummarizerService:
                     "content": f"Fasse diese Nachrichten zusammen:\n\n{formatted}"
                 }],
             )
-            return response.content[0].text # type: ignore
+            return response.content[0].text  # type: ignore
+        except APITimeoutError:
+            logger.error("Claude API timeout — Anfrage dauerte zu lange")
+            return "Entschuldigung, die Zusammenfassung hat zu lange gedauert."
+        except APIConnectionError:
+            logger.error("Claude API connection error — keine Verbindung")
+            return "Entschuldigung, ich konnte den Zusammenfassungsdienst nicht erreichen."
+        except APIStatusError as e:
+            logger.error(f"Claude API status error: {e.status_code} — {e.message}")
+            return "Entschuldigung, ich konnte deine Nachrichten gerade nicht zusammenfassen."
         except Exception as e:
-            logger.error(f"Claude API error: {e}")
+            logger.error(f"Claude API unexpected error: {e}")
             return "Entschuldigung, ich konnte deine Nachrichten gerade nicht zusammenfassen."
 
     async def answer_followup(
@@ -83,6 +93,15 @@ verabschiede dich freundlich."""
             answer = response.content[0].text  # type: ignore
             conversation_history.append({"role": "assistant", "content": answer})
             return answer
+        except APITimeoutError:
+            logger.error("Claude followup timeout — Anfrage dauerte zu lange")
+            return "Entschuldigung, die Antwort hat zu lange gedauert."
+        except APIConnectionError:
+            logger.error("Claude followup connection error — keine Verbindung")
+            return "Entschuldigung, ich konnte den Dienst nicht erreichen."
+        except APIStatusError as e:
+            logger.error(f"Claude followup status error: {e.status_code} — {e.message}")
+            return "Entschuldigung, das habe ich nicht verstanden."
         except Exception as e:
-            logger.error(f"Claude followup error: {e}")
+            logger.error(f"Claude followup unexpected error: {e}")
             return "Entschuldigung, das habe ich nicht verstanden."

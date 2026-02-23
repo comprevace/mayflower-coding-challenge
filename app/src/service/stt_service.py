@@ -1,6 +1,9 @@
 import logging
-import websockets
+
 import httpx
+import websockets
+
+from src.core.config import DEEPGRAM_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +13,7 @@ DEEPGRAM_STREAM_URL = "wss://api.deepgram.com/v1/listen"
 class STTService:
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = httpx.AsyncClient(timeout=DEEPGRAM_TIMEOUT)
 
     async def transcribe(self, audio_bytes: bytes, content_type: str = "audio/mpeg") -> str:
         """Wandelt Audio-Bytes in Text um."""
@@ -40,8 +43,17 @@ class STTService:
             )
             logger.info(f"STT transcribed: {transcript}")
             return transcript
+        except httpx.TimeoutException:
+            logger.error("Deepgram API timeout — Transkription dauerte zu lange")
+            return ""
+        except httpx.ConnectError:
+            logger.error("Deepgram API connection error — keine Verbindung")
+            return ""
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Deepgram API HTTP error: {e.response.status_code}")
+            return ""
         except Exception as e:
-            logger.error(f"STT error: {e}")
+            logger.error(f"STT unexpected error: {e}")
             return ""
         
     def create_stream(self):
