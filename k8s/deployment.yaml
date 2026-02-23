@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messenger-ab
+  labels:
+    app: messenger-ab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: messenger-ab
+  template:
+    metadata:
+      labels:
+        app: messenger-ab
+    spec:
+      containers:
+        - name: messenger-ab
+          image: messenger-ab:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: messenger-ab-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10

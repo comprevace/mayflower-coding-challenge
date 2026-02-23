@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: messenger-ab
+  labels:
+    app: messenger-ab
+spec:
+  type: LoadBalancer
+  selector:
+    app: messenger-ab
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
