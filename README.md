@@ -37,6 +37,8 @@ app/
     └── models/
         └── telegramMessage.py      # TelegramMessage Dataclass
 k8s/                                # Kubernetes Manifeste
+tests/
+    └── test_e2e.py                 # End-to-End Tests
 ```
 
 ## Tech-Stack
@@ -52,6 +54,7 @@ k8s/                                # Kubernetes Manifeste
 | Audio | pydub + audioop-lts (MP3 → mulaw 8kHz) |
 | Container | Docker (multi-stage mit uv) |
 | Orchestrierung | Kubernetes |
+| Tests | pytest + pytest-asyncio |
 
 ## Setup
 
@@ -101,6 +104,14 @@ kubectl create secret generic messenger-ab-secrets --from-env-file=.env
 # Deployen
 kubectl apply -k k8s/
 ```
+
+## Tests
+
+```bash
+uv run pytest
+```
+
+Testet Endpoints, Telegram-Parsing, Nachrichtenformatierung, Audio-Chunking und Pipeline-Konstanten.
 
 ## Konfiguration
 
