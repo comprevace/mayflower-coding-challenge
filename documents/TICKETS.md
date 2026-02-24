@@ -26,6 +26,8 @@ Ticket 10: Containerisierung (Docker)
 Ticket 11: Kubernetes Deployment
    │
 Ticket 12: Dokumentation & Cleanup
+   │
+Ticket 13: Tests
 ```
 
 ---
@@ -200,6 +202,23 @@ Ticket 12: Dokumentation & Cleanup
 
 ---
 
+## Ticket 13: Tests
+**Ziel:** Unit Tests für alle Service-Klassen und Hilfsfunktionen
+**Tasks:**
+- Test-Framework aufsetzen (pytest + pytest-asyncio)
+- **TelegramService**: `_parse_update()` mit verschiedenen Update-Formaten, `fetch_unread_messages()` mit gemockter HTTP-Response, `acknowledge()`
+- **LLMService**: `_format_messages()` mit verschiedenen Nachrichtensets, `summarize()` und `answer_followup()` mit gemocktem Anthropic Client, Fallback bei API-Fehlern
+- **TTSService**: `synthesize()` mit gemocktem edge-tts, mulaw-Konvertierung prüfen
+- **STTService**: `create_stream()` URL und Header korrekt
+- **TwilioService**: `generate_twiml()` gibt valides TwiML zurück
+- **Pipeline**: `_flush_audio_queue()`, Goodbye-Erkennung
+- **audio_utils**: `mp3_to_mulaw()` Konvertierung
+- **config**: Timeout-Werte aus Umgebungsvariablen
+
+**Testbar:** `pytest` läuft durch, alle Tests grün
+
+---
+
 ## Zeitschätzung (grob)
 
 | Ticket | Aufwand |
@@ -216,6 +235,7 @@ Ticket 12: Dokumentation & Cleanup
 | 10: Docker | 0.5 Tage |
 | 11: Kubernetes | 0.5 Tage |
 | 12: Dokumentation | 0.5 Tage |
-| **Gesamt** | **~7-8 Tage** |
+| 13: Tests | 1 Tag |
+| **Gesamt** | **~8-9 Tage** |
 
 > Puffer einplanen für unerwartete Probleme, besonders bei der Audio-Pipeline (Ticket 7).
