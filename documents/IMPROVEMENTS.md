@@ -7,7 +7,7 @@ Was ich in einem Production-Szenario anders machen würde:
 - **TTS**: edge-tts ist kostenlos aber inoffiziell und ohne SLA — in Production würde ich auf **Google Cloud TTS** oder **Amazon Polly** setzen (zuverlässiger, bessere Stimmenqualität, SLA-garantiert)
 - **STT**: Deepgram ist gut, aber **Google Speech-to-Text** oder **Azure Speech Services** bieten bessere deutsche Spracherkennung und Enterprise-Support
 - **Telefonie**: Twilio ist relativ teuer (~0,02€/min) — Alternativen wie **Vonage (Nexmo)** oder **Plivo** sind günstiger. Für volle Kontrolle wäre **Asterisk/FreeSWITCH** als eigene Telefonanlage eine Option
-- **LLM**: Claude ist aktuell sehr gut, aber für kürzere Zusammenfassungen könnte ein kleineres/günstigeres Modell (Claude Haiku, GPT-4o-mini) ausreichen — spart Kosten bei gleichem Ergebnis
+
 
 ## Kosten-Optimierung
 
