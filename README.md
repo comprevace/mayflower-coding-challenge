@@ -77,17 +77,48 @@ cp .env.example .env
 uv sync
 ```
 
+### Twilio einrichten
+
+1. **Account erstellen** auf [twilio.com](https://www.twilio.com/) (kostenloser Trial reicht)
+2. **Telefonnummer kaufen**: Console → Phone Numbers → Buy a Number → eine Nummer mit Voice-Fähigkeit wählen
+3. **Credentials notieren**: Console → Account Info → `Account SID` und `Auth Token` in die `.env` eintragen
+4. **ngrok starten** (oder andere öffentliche URL bereitstellen):
+   ```bash
+   ngrok http 8000
+   ```
+5. **Webhook konfigurieren**: Console → Phone Numbers → Active Numbers → Nummer anklicken → Voice Configuration:
+   - "A call comes in" → **Webhook**
+   - URL: `https://<ngrok-url>/twilio/voice`
+   - HTTP Method: **POST**
+6. **`.env` befüllen**:
+   ```
+   TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_PHONE_NUMBER=+1xxxxxxxxxx
+   PUBLIC_URL=https://<ngrok-url>
+   ```
+
+> **Hinweis:** Bei ngrok ändert sich die URL bei jedem Neustart. Die `PUBLIC_URL` in der `.env` und den Twilio-Webhook entsprechend aktualisieren.
+
 ### Lokal starten
 
 ```bash
 # Terminal 1: Server
 uv run python app/app.py
 
-# Terminal 2: ngrok
+# Terminal 2: ngrok (falls noch nicht gestartet)
 ngrok http 8000
 ```
 
-Twilio Webhook auf `https://<ngrok-url>/twilio/voice` setzen.
+### Lokale Demo (ohne Twilio)
+
+Nutzt Mikrofon + Lautsprecher statt Telefonanruf — alle Services (Telegram, Claude, Deepgram, edge-tts) laufen identisch:
+
+```bash
+uv run python app/local_demo.py
+```
+
+Benötigt nur `TELEGRAM_BOT_TOKEN`, `ANTHROPIC_API_KEY` und `DEEPGRAM_API_KEY` in der `.env`.
 
 ### Docker
 
